@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "mobile-app",
-    "slug": "mobile-app",
+    "name": "CUA Movement",
+    "slug": "cua-movement",
+    "scheme": "cuamovement",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,6 +21,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow CUA Movement to use the camera to scan the station QR code at campus gates.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }
