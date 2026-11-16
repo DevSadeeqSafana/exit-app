@@ -66,7 +66,7 @@ async function startSession(result: LoginResult, preview = false) {
   router.replace(destination);
 }
 
-const SAMPLE_ACCOUNTS: Array<{ id: AuthRole; label: string }> = [
+const SAMPLE_ACCOUNTS: { id: AuthRole; label: string }[] = [
   { id: 'student', label: 'Student' },
   { id: 'staff', label: 'Staff' },
   { id: 'admin', label: 'Admin' }
@@ -214,7 +214,7 @@ export default function LoginScreen() {
 
         <View style={styles.card}>
           <Text style={styles.heading}>Continue with Google</Text>
-          <Text style={styles.helper}>Sign in with your university email. We'll recognise whether you're a student or staff member automatically.</Text>
+          <Text style={styles.helper}>Sign in with your university email. We’ll recognise whether you’re a student or staff member automatically.</Text>
 
           {configuredClientId ? (
             <GoogleSignInButton clientId={configuredClientId} />

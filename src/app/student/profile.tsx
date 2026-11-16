@@ -13,7 +13,8 @@ import {
   initials,
   type IconName
 } from '../../components/dashboard';
-import { clearSession, getSession } from '../../lib/session';
+import { getSession } from '../../lib/session';
+import { signOut as signOutAndClear } from '../../lib/signOut';
 import { getMe, photoUrl, type StudentProfile } from '../../services/movementApi';
 import { theme } from '../../theme';
 
@@ -65,10 +66,7 @@ export default function StudentProfileScreen() {
       {
         text: 'Sign out',
         style: 'destructive',
-        onPress: async () => {
-          await clearSession();
-          router.replace('/');
-        }
+        onPress: () => { signOutAndClear(); }
       }
     ]);
 

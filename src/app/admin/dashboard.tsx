@@ -13,7 +13,8 @@ import {
   formatDateTime,
   statusTone
 } from '../../components/dashboard';
-import { clearSession, getSession } from '../../lib/session';
+import { getSession } from '../../lib/session';
+import { signOut } from '../../lib/signOut';
 import { getBusList, getDashboard, getExitRequests, getOffCampus } from '../../services/movementApi';
 import { theme } from '../../theme';
 
@@ -74,10 +75,7 @@ export default function AdminDashboard() {
     setRefreshing(false);
   };
 
-  const handleSignOut = async () => {
-    await clearSession();
-    router.replace('/');
-  };
+  const handleSignOut = () => signOut();
 
   const counts = Object.fromEntries(
     STATUSES.map((status) => [status, exits.filter((item) => String(item.status || '').toLowerCase() === status.toLowerCase()).length])

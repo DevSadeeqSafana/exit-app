@@ -411,3 +411,22 @@ export async function getOffCampus(token: string) {
     { method: 'GET', headers: authed(token) }
   );
 }
+
+/* ------------------------------- Push notifications ------------------------------- */
+// Students only (features plan, Phase 6). 503 code 'not_configured' until backend migration 096 is run.
+
+export async function registerPushToken(token: string, pushToken: string, platform: string) {
+  return request<{ success: boolean }>(`/movement/push-token`, {
+    method: 'POST',
+    headers: authed(token),
+    body: JSON.stringify({ token: pushToken, platform })
+  });
+}
+
+export async function removePushToken(token: string, pushToken: string) {
+  return request<{ success: boolean }>(`/movement/push-token`, {
+    method: 'DELETE',
+    headers: authed(token),
+    body: JSON.stringify({ token: pushToken })
+  });
+}

@@ -15,11 +15,12 @@ import {
   formatDateTime,
   statusTone
 } from '../../components/dashboard';
-import { OffCampusBanner, PendingBanner, serverOffset, useServerNow } from '../../components/exitBanners';
-import { clearSession, getSession } from '../../lib/session';
+import { OffCampusBanner, PendingBanner, formatClock, serverOffset, useServerNow } from '../../components/exitBanners';
+import { getSession } from '../../lib/session';
+import { setUpStudentNotifications, syncReturnReminders } from '../../lib/notifications';
+import { signOut } from '../../lib/signOut';
 import { confirmCancelExit } from '../../lib/cancelExit';
 import { getDashboard, getExitRequests, getMyBusTrips, type MyBusTrip } from '../../services/movementApi';
-import { formatClock } from '../../components/exitBanners';
 import { theme } from '../../theme';
 
 export default function StudentDashboard() {
@@ -32,6 +33,7 @@ export default function StudentDashboard() {
   const [onBus, setOnBus] = useState<MyBusTrip | null>(null);
   const now = useServerNow(offset);
   const active = useRef(true);
+  const notificationsSetUp = useRef(false);
 
   const load = useCallback(async () => {
     const session = await getSession();
@@ -51,6 +53,12 @@ export default function StudentDashboard() {
     if (dashboardRes.dashboard?.summary) setStats((prev) => ({ ...prev, ...dashboardRes.dashboard.summary }));
     setExits(exitsRes.exits || []);
     setOffset(serverOffset(exitsRes.serverTime));
+    // Phase 6: notifications (asked once) and the local return reminder. Never blocks the screen.
+    if (!notificationsSetUp.current) {
+      notificationsSetUp.current = true;
+      setUpStudentNotifications(session.token);
+    }
+    syncReturnReminders(exitsRes.exits || [], serverOffset(exitsRes.serverTime));
     setOnBus(busRes.current || null);
   }, []);
 
@@ -69,10 +77,7 @@ export default function StudentDashboard() {
     setRefreshing(false);
   };
 
-  const handleSignOut = async () => {
-    await clearSession();
-    router.replace('/');
-  };
+  const handleSignOut = () => signOut();
 
   const latest = exits[0];
   const offCampus = exits.find((item) => item.status === 'Verified');

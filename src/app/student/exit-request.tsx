@@ -146,7 +146,7 @@ export default function ExitRequestScreen() {
       </Card>
 
       <InfoNote>
-        Once your request is approved, open "My exit QR" and show the code to security at the gate as you leave, and again when you come back.
+        Once your request is approved, open “My exit QR” and show the code to security at the gate as you leave, and again when you come back.
         {options ? ` Please return within ${formatMinutes(options.returnDeadlineMinutes)}.` : ''}
       </InfoNote>
 

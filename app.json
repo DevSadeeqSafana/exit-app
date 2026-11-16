@@ -27,8 +27,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow CUA Movement to use the camera to scan the station QR code at campus gates.",
+          "cameraPermission": "Allow CUA Movement to use the camera to scan QR codes: staff scan exit QR codes at the gate, and students scan the bus QR when boarding and getting off.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0b2a5b",
+          "defaultChannel": "movement"
         }
       ]
     ]

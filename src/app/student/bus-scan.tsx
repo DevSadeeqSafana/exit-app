@@ -95,7 +95,7 @@ export default function BusScanScreen() {
       <View style={styles.scanner}>
         <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onScanned} />
         <View style={[styles.overlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}>
-          <Text style={styles.overlayTitle}>Scan the QR on the staff member's phone</Text>
+          <Text style={styles.overlayTitle}>Scan the QR on the staff member’s phone</Text>
           <View style={styles.frame}>
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />

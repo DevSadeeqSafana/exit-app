@@ -240,7 +240,7 @@ export function Section({ title, subtitle, children }: { title: string; subtitle
   );
 }
 
-export function StatRow({ items }: { items: Array<{ icon: IconName; label: string; value: number | string; color?: string }> }) {
+export function StatRow({ items }: { items: { icon: IconName; label: string; value: number | string; color?: string }[] }) {
   return (
     <View style={styles.statRow}>
       {items.map((item) => (

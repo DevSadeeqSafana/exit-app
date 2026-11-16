@@ -15,7 +15,8 @@ import {
   formatDateTime,
   statusTone
 } from '../../components/dashboard';
-import { clearSession, getSession } from '../../lib/session';
+import { getSession } from '../../lib/session';
+import { signOut } from '../../lib/signOut';
 import { getBusList, getDashboard, getExitRequests, getOffCampus } from '../../services/movementApi';
 import { theme } from '../../theme';
 
@@ -79,10 +80,7 @@ export default function StaffDashboard() {
     setRefreshing(false);
   };
 
-  const handleSignOut = async () => {
-    await clearSession();
-    router.replace('/');
-  };
+  const handleSignOut = () => signOut();
 
   const pending = items.filter((item) => isStatus(item, 'pending'));
   const others = items.filter((item) => !isStatus(item, 'pending')).slice(0, 5);

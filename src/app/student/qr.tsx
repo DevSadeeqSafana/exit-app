@@ -38,11 +38,15 @@ export default function StudentQrScreen() {
   const [qr, setQr] = useState<Qr | null>(null);
   const [qrError, setQrError] = useState('');
   const [confirmed, setConfirmed] = useState<Confirmed | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const active = useRef(false);
   const renewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const qrRef = useRef<Qr | null>(null);
-  qrRef.current = qr;
+  // The latest loadQr, for the renewal timer (a callback cannot call itself before it is declared).
+  const loadQrRef = useRef<(exitId: string) => void>(() => {});
+  useEffect(() => {
+    qrRef.current = qr;
+  }, [qr]);
 
   // Same choice as the server: the requested exit, else one already out (needs a return), else the approved one.
   const pick = (list: ExitRequest[]) => {
@@ -71,7 +75,7 @@ export default function StudentQrScreen() {
       setQr({ value: res.qrValue, type: res.type, expiresAt, exitId });
       setQrError('');
       renewTimer.current = setTimeout(() => {
-        if (active.current) loadQr(exitId);
+        if (active.current) loadQrRef.current(exitId);
       }, Math.max(15 * 1000, expiresAt - Date.now() - RENEW_BEFORE_EXPIRY_MS));
     } catch (error) {
       if (!active.current) return;
@@ -79,6 +83,10 @@ export default function StudentQrScreen() {
       setQrError(error instanceof Error ? error.message : 'Unable to create your QR code.');
     }
   }, []);
+
+  useEffect(() => {
+    loadQrRef.current = loadQr;
+  }, [loadQr]);
 
   const loadExits = useCallback(async () => {
     const session = await getSession();
@@ -228,7 +236,7 @@ export default function StudentQrScreen() {
           </Section>
 
           <InfoNote icon="shield-checkmark-outline">
-            Security scans this code and checks your photo. Each code works once and changes every few minutes, so screenshots won't work.
+            Security scans this code and checks your photo. Each code works once and changes every few minutes, so screenshots won’t work.
             Keep this screen open at the gate.
           </InfoNote>
         </>

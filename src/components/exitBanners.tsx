@@ -16,13 +16,12 @@ export function serverOffset(serverTime?: string | null) {
 
 /** The current time on the server's clock, refreshed every `everyMs`. */
 export function useServerNow(offsetMs: number, everyMs = 15000) {
-  const [now, setNow] = useState(() => Date.now() + offsetMs);
+  const [phoneNow, setPhoneNow] = useState(() => Date.now());
   useEffect(() => {
-    setNow(Date.now() + offsetMs);
-    const timer = setInterval(() => setNow(Date.now() + offsetMs), everyMs);
+    const timer = setInterval(() => setPhoneNow(Date.now()), everyMs);
     return () => clearInterval(timer);
-  }, [offsetMs, everyMs]);
-  return now;
+  }, [everyMs]);
+  return phoneNow + offsetMs;
 }
 
 export function formatClock(value?: string | null) {

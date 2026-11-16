@@ -137,7 +137,7 @@ export default function GateScanScreen() {
       <View style={styles.scannerContainer}>
         <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onScanned} />
         <View style={[styles.scannerOverlay, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}>
-          <Text style={styles.scannerTitle}>Scan the student's exit QR code</Text>
+          <Text style={styles.scannerTitle}>Scan the student’s exit QR code</Text>
           <View style={styles.scannerFrame}>
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />
@@ -164,7 +164,7 @@ export default function GateScanScreen() {
               <Ionicons name="qr-code-outline" size={44} color={theme.colors.navy} />
             </View>
             <Text style={styles.title}>Scan an exit QR</Text>
-            <Text style={styles.text}>The student opens "My exit QR" in their app. You'll see their photo and approved request before confirming.</Text>
+            <Text style={styles.text}>The student opens “My exit QR” in their app. You’ll see their photo and approved request before confirming.</Text>
           </Card>
           <PrimaryButton icon="scan-outline" label="Start scanning" onPress={openScanner} />
           <InfoNote icon="shield-checkmark-outline">Check that the person in front of you is the student in the photo before confirming.</InfoNote>

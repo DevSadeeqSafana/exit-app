@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -88,10 +89,7 @@ export default function BusTripScreen() {
   // Fetch the QR for the current phase, then again just as it changes.
   useEffect(() => {
     if (codeTimer.current) clearTimeout(codeTimer.current);
-    if (!focused || !phase) {
-      setCode(null);
-      return undefined;
-    }
+    if (!focused || !phase) return undefined;
     let cancelled = false;
     const fetchCode = async () => {
       try {
@@ -192,6 +190,8 @@ export default function BusTripScreen() {
   }
 
   const full = trip.capacity !== null && boardedList.length >= trip.capacity;
+  // A code fetched for the other phase (e.g. boarding, just after Depart) is never shown.
+  const shownCode = phase && code?.phase === phase ? code : null;
 
   return (
     <SubScreen title={`${trip.origin} → ${trip.destination}`} subtitle={`Bus ${trip.busNumber}${trip.plateNumber ? ` · ${trip.plateNumber}` : ''} · ${trip.driver || ''}`}>
@@ -215,8 +215,8 @@ export default function BusTripScreen() {
               : 'Students scan this as they get off the bus.'}
           </Text>
           <View style={styles.qrBox}>
-            {code ? (
-              <QRCode value={code.qrValue} size={240} color={phase === 'boarding' ? c.navy : c.emerald} backgroundColor="#ffffff" />
+            {shownCode ? (
+              <QRCode value={shownCode.qrValue} size={240} color={phase === 'boarding' ? c.navy : c.emerald} backgroundColor="#ffffff" />
             ) : (
               <Text style={styles.qrWaiting}>{codeError || 'Loading code…'}</Text>
             )}
@@ -225,7 +225,7 @@ export default function BusTripScreen() {
         </Card>
       ) : null}
 
-      {phase ? <InfoNote icon="sunny-outline">Keep your screen on while students scan.</InfoNote> : null}
+      {phase ? <StayAwake /> : null}
 
       <StatRow
         items={[
@@ -284,6 +284,12 @@ export default function BusTripScreen() {
       )}
     </SubScreen>
   );
+}
+
+// Mounted only while a QR is on screen, so the phone does not lock while students scan.
+function StayAwake() {
+  useKeepAwake('bus-qr');
+  return null;
 }
 
 function PassengerList({
