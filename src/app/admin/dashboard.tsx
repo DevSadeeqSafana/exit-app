@@ -14,7 +14,7 @@ import {
   statusTone
 } from '../../components/dashboard';
 import { clearSession, getSession } from '../../lib/session';
-import { getBusList, getDashboard, getExitRequests } from '../../services/movementApi';
+import { getBusList, getDashboard, getExitRequests, getOffCampus } from '../../services/movementApi';
 import { theme } from '../../theme';
 
 const STATUSES = ['Pending', 'Approved', 'Verified', 'Returned', 'Rejected'];
@@ -26,6 +26,9 @@ export default function AdminDashboard() {
   const [exits, setExits] = useState<any[]>([]);
   const [buses, setBuses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [canScan, setCanScan] = useState(false);
+  const [canRunBus, setCanRunBus] = useState(false);
+  const [offCampus, setOffCampus] = useState<{ count: number; overdue: number } | null>(null);
   const active = useRef(true);
 
   const load = useCallback(async () => {
@@ -44,6 +47,14 @@ export default function AdminDashboard() {
     ]);
     if (!active.current) return;
     if (dash.dashboard?.summary) setStats((prev) => ({ ...prev, ...dash.dashboard.summary }));
+    setCanScan(Boolean(dash.canScanGate));
+    setCanRunBus(Boolean(dash.canStartBusTrip));
+    if (dash.canSeeOffCampus) {
+      const oc = await getOffCampus(session.token).catch(() => null);
+      if (active.current) setOffCampus(oc ? { count: oc.count, overdue: oc.overdue } : null);
+    } else {
+      setOffCampus(null);
+    }
     setExits(exitRes.exits || []);
     setBuses(busRes.buses || []);
   }, []);
@@ -100,6 +111,33 @@ export default function AdminDashboard() {
           ]}
         />
       </Section>
+
+      {canScan && (
+        <ActionListItem
+          icon="scan-outline"
+          title="Gate scanner"
+          caption="Scan a student's exit QR to confirm they are leaving or returning"
+          onPress={() => router.push('/staff/gate-scan')}
+        />
+      )}
+
+      {canRunBus && (
+        <ActionListItem
+          icon="bus-outline"
+          title="Bus trips"
+          caption="Start a trip and show the boarding and arrival QR"
+          onPress={() => router.push('/staff/bus')}
+        />
+      )}
+
+      {offCampus ? (
+        <ActionListItem
+          icon="walk-outline"
+          title="Off campus now"
+          caption={`${offCampus.count} out · ${offCampus.overdue} overdue${offCampus.overdue ? ' — tap to see who' : ''}`}
+          onPress={() => router.push('/staff/off-campus')}
+        />
+      ) : null}
 
       <ActionListItem
         icon="bar-chart-outline"

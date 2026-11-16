@@ -14,10 +14,12 @@ import {
   statusTone
 } from '../../components/dashboard';
 import { getSession } from '../../lib/session';
-import { getExitRequests } from '../../services/movementApi';
+import { confirmCancelExit } from '../../lib/cancelExit';
+import { getExitRequests, getMyBusTrips, type MyBusTrip } from '../../services/movementApi';
 
 export default function StudentHistoryScreen() {
   const [items, setItems] = useState<any[]>([]);
+  const [busTrips, setBusTrips] = useState<MyBusTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -27,8 +29,12 @@ export default function StudentHistoryScreen() {
       router.replace('/');
       return;
     }
-    const res = await getExitRequests(session.token);
+    const [res, busRes] = await Promise.all([
+      getExitRequests(session.token),
+      getMyBusTrips(session.token).catch(() => ({ success: false, trips: [] as MyBusTrip[], current: null }))
+    ]);
     setItems(res.exits || []);
+    setBusTrips(busRes.trips || []);
   }, []);
 
   const reportError = (error: unknown) =>
@@ -60,6 +66,7 @@ export default function StudentHistoryScreen() {
             return (
               <ListCard
                 key={String(item.id)}
+                onPress={() => router.push({ pathname: '/student/request/[id]', params: { id: item.id } })}
                 icon={tone.icon}
                 iconColor={tone.fg}
                 iconBg={tone.bg}
@@ -72,15 +79,54 @@ export default function StudentHistoryScreen() {
                     : item.reason || undefined
                 }
                 footer={
-                  item.canGenerateQR ? (
+                  item.canGenerateQR || item.canCancel ? (
                     <CardFooter>
-                      <CardButton
-                        icon="scan-outline"
-                        label={item.nextQrAction === 'return' ? 'Scan to check in' : 'Scan to check out'}
-                        onPress={() => router.push({ pathname: '/student/scan', params: { exitId: item.id } })}
-                      />
+                      {item.canGenerateQR ? (
+                        <CardButton
+                          icon="qr-code-outline"
+                          label={item.nextQrAction === 'return' ? 'Show return QR' : 'Show exit QR'}
+                          onPress={() => router.push({ pathname: '/student/qr', params: { exitId: item.id } })}
+                        />
+                      ) : null}
+                      {item.canCancel ? (
+                        <CardButton
+                          icon="close-outline"
+                          label="Cancel request"
+                          variant="danger"
+                          onPress={() => confirmCancelExit(item, () => { load().catch(reportError); })}
+                        />
+                      ) : null}
                     </CardFooter>
                   ) : undefined
+                }
+              />
+            );
+          })}
+        </Section>
+      )}
+      {!loading && busTrips.length > 0 && (
+        <Section title="Bus trips" subtitle={`${busTrips.length}`}>
+          {busTrips.map((trip) => {
+            const tone = statusTone(trip.status);
+            return (
+              <ListCard
+                key={`bus-${trip.id}`}
+                icon="bus-outline"
+                iconColor={tone.fg}
+                iconBg={tone.bg}
+                title={`${trip.origin || '—'} → ${trip.destination || '—'}`}
+                subtitle={`Bus ${trip.busNumber} · ${formatDateTime(trip.boardedAt || undefined)}`}
+                status={trip.status === 'No Arrival' ? 'No arrival scan' : trip.status}
+                note={
+                  trip.status === 'Arrived'
+                    ? `Got off ${formatDateTime(trip.arrivedAt || undefined)}`
+                    : trip.status === 'Boarded'
+                      ? 'On the bus: scan the arrival QR when you get off'
+                      : trip.status === 'No Arrival'
+                        ? 'You did not scan when getting off'
+                        : trip.status === 'Removed'
+                          ? 'Removed by the staff member on the bus'
+                          : undefined
                 }
               />
             );

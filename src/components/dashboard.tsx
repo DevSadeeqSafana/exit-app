@@ -62,6 +62,13 @@ export function statusTone(status?: string): Tone {
       return { fg: '#4b5d74', bg: '#edf1f6', icon: 'return-down-back-outline' };
     case 'rejected':
       return { fg: c.danger, bg: '#fbe9e7', icon: 'close-circle-outline' };
+    case 'cancelled':
+    case 'removed':
+      return { fg: '#6b7a8f', bg: '#eef0f3', icon: 'ban-outline' };
+    case 'boarded':
+      return { fg: c.navySoft, bg: '#e4eefc', icon: 'bus-outline' };
+    case 'no arrival':
+      return { fg: c.danger, bg: '#fbe9e7', icon: 'alert-circle-outline' };
     case 'pending':
     default:
       return { fg: c.amber, bg: '#fdf1df', icon: 'hourglass-outline' };
@@ -103,25 +110,36 @@ export function DashboardHeader({
   name,
   preview,
   onSignOut,
+  onProfile,
   highlight
 }: {
   eyebrow: string;
   name: string;
   preview?: boolean;
   onSignOut: () => void;
+  onProfile?: () => void; // makes the avatar and name open the profile
   highlight: { icon: IconName; label: string; value: string; caption?: string };
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
       <View style={styles.headerRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials(name)}</Text>
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
-          <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        </View>
+        <Pressable
+          onPress={onProfile}
+          disabled={!onProfile}
+          accessibilityRole={onProfile ? 'button' : undefined}
+          accessibilityLabel={onProfile ? 'Open my profile' : undefined}
+          style={({ pressed }) => [styles.headerIdentity, pressed && styles.pressed]}
+        >
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials(name)}</Text>
+          </View>
+          <View style={styles.headerText}>
+            <Text style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
+            <Text style={styles.name} numberOfLines={1}>{name}</Text>
+            {onProfile ? <Text style={styles.profileLink}>View profile</Text> : null}
+          </View>
+        </Pressable>
         <Pressable
           onPress={onSignOut}
           accessibilityRole="button"
@@ -310,7 +328,8 @@ export function ListCard({
   subtitle,
   status,
   note,
-  footer
+  footer,
+  onPress
 }: {
   icon: IconName;
   iconColor: string;
@@ -320,9 +339,10 @@ export function ListCard({
   status?: string;
   note?: string;
   footer?: ReactNode;
+  onPress?: () => void; // makes the whole card tappable (buttons in the footer still work on their own)
 }) {
-  return (
-    <View style={styles.card}>
+  const body = (
+    <>
       <View style={styles.cardRow}>
         <View style={[styles.cardIcon, { backgroundColor: iconBg }]}>
           <Ionicons name={icon} size={20} color={iconColor} />
@@ -335,7 +355,18 @@ export function ListCard({
       </View>
       {note ? <Text style={styles.cardNote} numberOfLines={2}>{note}</Text> : null}
       {footer}
-    </View>
+    </>
+  );
+  if (!onPress) return <View style={styles.card}>{body}</View>;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}${status ? `, ${status}` : ''}`}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -522,6 +553,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.slate },
   body: { paddingHorizontal: 16, paddingTop: 20, gap: 24 },
   pressed: { opacity: 0.7 },
+  headerIdentity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  profileLink: { color: c.gold, fontSize: 12, fontWeight: '700', marginTop: 2 },
 
   // Header
   header: {
@@ -642,6 +675,7 @@ const styles = StyleSheet.create({
     borderColor: c.border,
     ...cardShadow
   },
+  cardPressed: { backgroundColor: '#f5f8fd' },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { color: c.text, fontSize: 15, fontWeight: '700' },

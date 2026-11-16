@@ -15,8 +15,11 @@ import {
   formatDateTime,
   statusTone
 } from '../../components/dashboard';
+import { OffCampusBanner, PendingBanner, serverOffset, useServerNow } from '../../components/exitBanners';
 import { clearSession, getSession } from '../../lib/session';
-import { getDashboard, getExitRequests } from '../../services/movementApi';
+import { confirmCancelExit } from '../../lib/cancelExit';
+import { getDashboard, getExitRequests, getMyBusTrips, type MyBusTrip } from '../../services/movementApi';
+import { formatClock } from '../../components/exitBanners';
 import { theme } from '../../theme';
 
 export default function StudentDashboard() {
@@ -25,6 +28,9 @@ export default function StudentDashboard() {
   const [stats, setStats] = useState({ approvedExits: 0, pendingReviews: 0, busScans: 0, currentLocation: 'Unknown' });
   const [exits, setExits] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [onBus, setOnBus] = useState<MyBusTrip | null>(null);
+  const now = useServerNow(offset);
   const active = useRef(true);
 
   const load = useCallback(async () => {
@@ -36,10 +42,16 @@ export default function StudentDashboard() {
     if (!active.current) return;
     setName(session.user?.name || 'Student');
     setPreview(Boolean(session.preview));
-    const [dashboardRes, exitsRes] = await Promise.all([getDashboard(session.token), getExitRequests(session.token)]);
+    const [dashboardRes, exitsRes, busRes] = await Promise.all([
+      getDashboard(session.token),
+      getExitRequests(session.token),
+      getMyBusTrips(session.token).catch(() => ({ success: false, trips: [], current: null }))
+    ]);
     if (!active.current) return;
     if (dashboardRes.dashboard?.summary) setStats((prev) => ({ ...prev, ...dashboardRes.dashboard.summary }));
     setExits(exitsRes.exits || []);
+    setOffset(serverOffset(exitsRes.serverTime));
+    setOnBus(busRes.current || null);
   }, []);
 
   const reportError = (error: unknown) =>
@@ -63,6 +75,9 @@ export default function StudentDashboard() {
   };
 
   const latest = exits[0];
+  const offCampus = exits.find((item) => item.status === 'Verified');
+  const pending = offCampus ? undefined : exits.find((item) => item.status === 'Pending');
+  const openRequest = (exitId: string) => router.push({ pathname: '/student/request/[id]', params: { id: exitId } });
 
   return (
     <DashboardScreen
@@ -74,6 +89,7 @@ export default function StudentDashboard() {
           name={name}
           preview={preview}
           onSignOut={handleSignOut}
+          onProfile={() => router.push('/student/profile')}
           highlight={
             latest
               ? { icon: statusTone(latest.status).icon, label: 'Latest exit request', value: `${latest.status} · ${latest.route}`, caption: formatDateTime(latest.time) }
@@ -82,9 +98,32 @@ export default function StudentDashboard() {
         />
       }
     >
+      {offCampus ? (
+        <OffCampusBanner
+          exit={offCampus}
+          now={now}
+          onShowQr={() => router.push({ pathname: '/student/qr', params: { exitId: offCampus.id } })}
+        />
+      ) : pending ? (
+        <PendingBanner exit={pending} now={now} onPress={() => openRequest(pending.id)} />
+      ) : null}
+
+      {onBus ? (
+        <ListCard
+          icon="bus"
+          iconColor={theme.colors.navySoft}
+          iconBg="#e4eefc"
+          title={`On bus ${onBus.busNumber} to ${onBus.destination}`}
+          subtitle={`Boarded at ${onBus.origin} · ${formatClock(onBus.boardedAt)}`}
+          note="Scan the arrival QR when you get off."
+          onPress={() => router.push('/student/bus-scan')}
+        />
+      ) : null}
+
       <ActionRow>
         <ActionTile primary icon="add-circle-outline" label="New exit" onPress={() => router.push('/student/exit-request')} />
-        <ActionTile icon="scan-outline" label="Gate check-in" onPress={() => router.push('/student/scan')} />
+        <ActionTile icon="qr-code-outline" label="My exit QR" onPress={() => router.push('/student/qr')} />
+        <ActionTile icon="bus-outline" label="Scan bus QR" onPress={() => router.push('/student/bus-scan')} />
         <ActionTile icon="time-outline" label="History" onPress={() => router.push('/student/history')} />
       </ActionRow>
 
@@ -93,7 +132,7 @@ export default function StudentDashboard() {
           items={[
             { icon: 'checkmark-done-outline', label: 'Approved exits', value: stats.approvedExits ?? 0, color: theme.colors.emerald },
             { icon: 'hourglass-outline', label: 'Pending review', value: stats.pendingReviews ?? 0, color: theme.colors.amber },
-            { icon: 'bus-outline', label: 'Bus scans', value: stats.busScans ?? 0, color: theme.colors.navySoft }
+            { icon: 'bus-outline', label: 'Bus trips', value: stats.busScans ?? 0, color: theme.colors.navySoft }
           ]}
         />
       </Section>
@@ -107,21 +146,40 @@ export default function StudentDashboard() {
             return (
               <ListCard
                 key={item.id}
+                onPress={() => openRequest(item.id)}
                 icon={tone.icon}
                 iconColor={tone.fg}
                 iconBg={tone.bg}
                 title={item.route || 'Exit request'}
                 subtitle={`${item.destination || 'Campus'} · ${formatDateTime(item.time)}`}
                 status={item.status}
-                note={item.reason}
+                note={
+                  item.decisionNote
+                    ? `${item.status === 'Rejected' ? 'Reason' : 'Staff note'}: ${item.decisionNote}`
+                    : item.reason
+                }
                 footer={
-                  item.canGenerateQR ? (
+                  item.canGenerateQR || item.canCancel ? (
                     <CardFooter>
-                      <CardButton
-                        icon="scan-outline"
-                        label={item.nextQrAction === 'return' ? 'Scan to check in' : 'Scan to check out'}
-                        onPress={() => router.push({ pathname: '/student/scan', params: { exitId: item.id } })}
-                      />
+                      {item.canGenerateQR ? (
+                        <CardButton
+                          icon="qr-code-outline"
+                          label={item.nextQrAction === 'return' ? 'Show return QR' : 'Show exit QR'}
+                          onPress={() => router.push({ pathname: '/student/qr', params: { exitId: item.id } })}
+                        />
+                      ) : null}
+                      {item.canCancel ? (
+                        <CardButton
+                          icon="close-outline"
+                          label="Cancel request"
+                          variant="danger"
+                          onPress={() => confirmCancelExit(item, () => { load().catch(reportError); })}
+                        />
+                      ) : null}
+                    </CardFooter>
+                  ) : item.status === 'Rejected' || (item.status === 'Cancelled' && item === latest) ? (
+                    <CardFooter>
+                      <CardButton icon="add-circle-outline" label="Make a new request" onPress={() => router.push('/student/exit-request')} />
                     </CardFooter>
                   ) : undefined
                 }

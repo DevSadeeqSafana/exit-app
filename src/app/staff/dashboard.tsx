@@ -2,13 +2,13 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import {
+  ActionListItem,
   ActionRow,
   ActionTile,
-  CardButton,
-  CardFooter,
   DashboardHeader,
   DashboardScreen,
   EmptyState,
+  InfoNote,
   ListCard,
   Section,
   StatRow,
@@ -16,8 +16,11 @@ import {
   statusTone
 } from '../../components/dashboard';
 import { clearSession, getSession } from '../../lib/session';
-import { approveExitRequest, getBusList, getExitRequests, rejectExitRequest } from '../../services/movementApi';
+import { getBusList, getDashboard, getExitRequests, getOffCampus } from '../../services/movementApi';
 import { theme } from '../../theme';
+
+// Operations view. Exit requests are approved or rejected in the Staff Portal (D3).
+// Staff with the Gate Verification grant scan students' exit QR codes here (Gate scanner).
 
 const isStatus = (item: any, status: string) => String(item?.status || '').toLowerCase() === status;
 
@@ -28,7 +31,9 @@ export default function StaffDashboard() {
   const [items, setItems] = useState<any[]>([]);
   const [buses, setBuses] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [canScan, setCanScan] = useState(false);
+  const [canRunBus, setCanRunBus] = useState(false);
+  const [offCampus, setOffCampus] = useState<{ count: number; overdue: number } | null>(null);
   const active = useRef(true);
 
   const load = useCallback(async () => {
@@ -41,8 +46,20 @@ export default function StaffDashboard() {
     setName(session.user?.name || 'Operations staff');
     setStation(session.user?.station || 'Campus');
     setPreview(Boolean(session.preview));
-    const [exits, busData] = await Promise.all([getExitRequests(session.token), getBusList(session.token)]);
+    const [exits, busData, dash] = await Promise.all([
+      getExitRequests(session.token),
+      getBusList(session.token),
+      getDashboard(session.token)
+    ]);
     if (!active.current) return;
+    setCanScan(Boolean(dash.canScanGate));
+    setCanRunBus(Boolean(dash.canStartBusTrip));
+    if (dash.canSeeOffCampus) {
+      const oc = await getOffCampus(session.token).catch(() => null);
+      if (active.current) setOffCampus(oc ? { count: oc.count, overdue: oc.overdue } : null);
+    } else {
+      setOffCampus(null);
+    }
     setItems(exits.exits || []);
     setBuses(busData.buses || []);
   }, []);
@@ -67,35 +84,6 @@ export default function StaffDashboard() {
     router.replace('/');
   };
 
-  const handleDecision = async (exitId: string, action: 'approve' | 'reject') => {
-    const session = await getSession();
-    if (!session) {
-      router.replace('/');
-      return;
-    }
-    try {
-      setBusyId(exitId);
-      if (action === 'approve') await approveExitRequest(session.token, exitId);
-      else await rejectExitRequest(session.token, exitId);
-      await load();
-    } catch (error) {
-      Alert.alert('Action failed', error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const confirmDecision = (exitId: string, action: 'approve' | 'reject') => {
-    Alert.alert(
-      action === 'approve' ? 'Approve exit request?' : 'Reject exit request?',
-      `Request EXT-${exitId} will be ${action === 'approve' ? 'approved' : 'rejected'}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: action === 'approve' ? 'Approve' : 'Reject', style: action === 'reject' ? 'destructive' : 'default', onPress: () => handleDecision(exitId, action) }
-      ]
-    );
-  };
-
   const pending = items.filter((item) => isStatus(item, 'pending'));
   const others = items.filter((item) => !isStatus(item, 'pending')).slice(0, 5);
   const activeBuses = buses.filter((bus) => !isStatus(bus, 'completed'));
@@ -114,15 +102,34 @@ export default function StaffDashboard() {
             icon: 'location-outline',
             label: 'Assigned station',
             value: station,
-            caption: pending.length ? `${pending.length} exit request${pending.length === 1 ? '' : 's'} awaiting your review` : 'Queue is clear — no requests awaiting review'
+            caption: pending.length
+              ? `${pending.length} exit request${pending.length === 1 ? '' : 's'} awaiting a decision in the Staff Portal`
+              : 'Queue is clear — no requests awaiting a decision'
           }}
         />
       }
     >
       <ActionRow>
-        <ActionTile primary icon="qr-code-outline" label="Station QR" onPress={() => router.push('/staff/station-qr')} />
-        <ActionTile icon="bus-outline" label="Bus monitor" onPress={() => router.push('/staff/bus-monitor')} />
+        {canScan && <ActionTile primary icon="scan-outline" label="Scan QR" onPress={() => router.push('/staff/gate-scan')} />}
+        {canRunBus && <ActionTile primary={!canScan} icon="bus" label="Bus trips" onPress={() => router.push('/staff/bus')} />}
+        <ActionTile primary={!canScan && !canRunBus} icon="bus-outline" label="Bus monitor" onPress={() => router.push('/staff/bus-monitor')} />
       </ActionRow>
+
+      <InfoNote icon="desktop-outline">
+        Exit requests are approved or rejected in the Staff Portal (Human Resource › Student Movement › Exit Requests).
+        {canScan
+          ? ' Use Scan QR to confirm students leaving and returning at the gate.'
+          : ' To scan exit QR codes, ask for the Gate Verification page to be granted to your group.'}
+      </InfoNote>
+
+      {offCampus ? (
+        <ActionListItem
+          icon="walk-outline"
+          title="Off campus now"
+          caption={`${offCampus.count} out · ${offCampus.overdue} overdue${offCampus.overdue ? ' — tap to see who' : ''}`}
+          onPress={() => router.push('/staff/off-campus')}
+        />
+      ) : null}
 
       <Section title="Today at a glance">
         <StatRow
@@ -134,14 +141,12 @@ export default function StaffDashboard() {
         />
       </Section>
 
-      <Section title="Awaiting review" subtitle={pending.length ? `${pending.length} pending` : undefined}>
+      <Section title="Awaiting a decision" subtitle={pending.length ? `${pending.length} pending · decide in the Staff Portal` : undefined}>
         {pending.length === 0 ? (
-          <EmptyState icon="checkmark-done-outline" title="All caught up" message="New exit requests from students will appear here for approval." />
+          <EmptyState icon="checkmark-done-outline" title="All caught up" message="New exit requests from students appear here, and are decided in the Staff Portal." />
         ) : (
           pending.map((item) => {
-            const exitId = String(item.id || '').replace(/^EXT-/, '');
             const tone = statusTone(item.status);
-            const busy = busyId === exitId;
             return (
               <ListCard
                 key={String(item.id)}
@@ -152,12 +157,6 @@ export default function StaffDashboard() {
                 subtitle={`${item.route || 'Route'} → ${item.destination || 'Campus'}`}
                 status={item.status}
                 note={item.reason ? `“${item.reason}” · ${formatDateTime(item.time)}` : formatDateTime(item.time)}
-                footer={
-                  <CardFooter>
-                    <CardButton variant="success" icon="checkmark" label="Approve" disabled={busy} onPress={() => confirmDecision(exitId, 'approve')} />
-                    <CardButton variant="danger" icon="close" label="Reject" disabled={busy} onPress={() => confirmDecision(exitId, 'reject')} />
-                  </CardFooter>
-                }
               />
             );
           })

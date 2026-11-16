@@ -61,7 +61,8 @@ async function startSession(result: LoginResult, preview = false) {
     }
   });
 
-  const destination = role === 'student' ? '/student/dashboard' : role === 'staff' ? '/staff/dashboard' : '/admin/dashboard';
+  // `as const`: expo-router's typed routes accept only known paths.
+  const destination = role === 'student' ? ('/student/dashboard' as const) : role === 'staff' ? ('/staff/dashboard' as const) : ('/admin/dashboard' as const);
   router.replace(destination);
 }
 
@@ -129,8 +130,11 @@ function DevPreview() {
 
 function GoogleSignInButton({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(false);
-  const processedAccessToken = useRef<string | null>(null);
-  const [request, response, promptAsync] = Google.useAuthRequest({ clientId, selectAccount: true });
+  const processedIdToken = useRef<string | null>(null);
+  // The backend needs Google's ID token (signed by Google, issued to OUR client ID) and
+  // verifies it; an access token is no longer accepted. expo-auth-session 58 returns it in
+  // response.params.id_token, on the web directly and on Android/iOS after its code exchange.
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({ clientId, selectAccount: true });
 
   useEffect(() => {
     if (!response) return;
@@ -140,18 +144,18 @@ function GoogleSignInButton({ clientId }: { clientId: string }) {
     }
     if (response.type !== 'success') return;
 
-    const accessToken = response.authentication?.accessToken || response.params?.access_token;
-    if (!accessToken) {
-      Alert.alert('Google sign-in failed', 'Google did not return an access token. Please try again.');
+    const idToken = response.params?.id_token || response.authentication?.idToken;
+    if (!idToken) {
+      Alert.alert('Google sign-in failed', 'Google did not return an ID token. Please try again.');
       return;
     }
-    if (processedAccessToken.current === accessToken) return;
-    processedAccessToken.current = accessToken;
+    if (processedIdToken.current === idToken) return;
+    processedIdToken.current = idToken;
 
     const completeSignIn = async () => {
       try {
         setLoading(true);
-        const result = await login(accessToken);
+        const result = await login(idToken);
         await startSession(result);
       } catch (error) {
         Alert.alert('Sign-in failed', error instanceof Error ? error.message : 'Unable to sign in right now.');
@@ -169,7 +173,7 @@ function GoogleSignInButton({ clientId }: { clientId: string }) {
       return;
     }
 
-    processedAccessToken.current = null;
+    processedIdToken.current = null;
     try {
       await promptAsync();
     } catch (error) {
@@ -188,7 +192,7 @@ export default function LoginScreen() {
   const missingClientId = () => {
     Alert.alert(
       'Google sign-in is not configured',
-      `Set EXPO_PUBLIC_GOOGLE_${Platform.OS === 'ios' ? 'IOS' : Platform.OS === 'android' ? 'ANDROID' : 'WEB'}_CLIENT_ID in mobile-app/.env.`
+      `Set EXPO_PUBLIC_GOOGLE_${Platform.OS === 'ios' ? 'IOS' : Platform.OS === 'android' ? 'ANDROID' : 'WEB'}_CLIENT_ID in the app's .env.local, then restart with npx expo start -c.`
     );
   };
 
